@@ -43,6 +43,7 @@ struct WoolenCharacter {
 
 	bool used, hugee;
 
+	int talks;
 	int talking;
 	int to_talk;
 	int hugging;
@@ -62,6 +63,13 @@ struct Player {
 	int motion;
 	bool right;
 	double position;
+	int talking;
+
+	double sum;
+	int count;
+	double avg;
+	double sumtemp;
+	int zerocount;
 
 	ALLEGRO_BITMAP* screen;
 
@@ -78,13 +86,14 @@ struct GamestateResources {
 
 	struct WoolenCharacter characters[5];
 
-	ALLEGRO_BITMAP *test, *bg, *tree;
+	ALLEGRO_BITMAP *test, *bg, *tree, *ramka;
 };
 
 int Gamestate_ProgressCount = 1; // number of loading steps as reported by Gamestate_Load
 
 static double HappyMod(double val, double mod, double happiness) {
-	return val + mod * happiness;
+	return val;
+	//	return val + mod * happiness;
 }
 
 void Gamestate_Logic(struct Game* game, struct GamestateResources* data) {
@@ -93,14 +102,62 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data) {
 		if (data->players[i].motion) {
 			data->players[i].motion--;
 		}
+
+		if (data->players[i].sumtemp) {
+			data->players[i].sum += data->players[i].sumtemp;
+			data->players[i].count++;
+			data->players[i].avg = data->players[i].sum / (double)data->players[i].count;
+			data->players[i].sumtemp = 0;
+			data->players[i].zerocount = 0;
+		} else {
+			data->players[i].zerocount++;
+			if (data->players[i].zerocount > 120) {
+				data->players[i].sum = 0;
+				data->players[i].count = 0;
+				data->players[i].avg = 0;
+			}
+		}
+
+		if (data->players[i].x > 1400) {
+			data->players[i].hugee->hugging++;
+		} else {
+			data->players[i].hugee->hugging = 0;
+		}
+
+		if (data->players[i].talking) {
+			data->players[i].hugee->since_being_talked_to = 0;
+			data->players[i].hugee->talks += 10;
+			data->players[i].talking--;
+			if ((data->players[i].hugee->to_talk == 0) && (data->players[i].hugee->talkativeness >= 0.5)) {
+				data->players[i].hugee->to_talk = (rand() / (double)RAND_MAX) * 60 * 6 + 30;
+			}
+		} else {
+			data->players[i].hugee->talks--;
+			if (data->players[i].hugee->talks < -10) {
+				data->players[i].hugee->talks = -10;
+			}
+			data->players[i].hugee->since_being_talked_to += 3;
+		}
 	}
 
 	for (int i = 0; i < 5; i++) {
 		if (data->characters[i].talking) {
 			data->characters[i].since_talking = 0;
+			data->characters[i].talking--;
+		} else {
+			data->characters[i].since_talking += 3;
 		}
 		if (data->characters[i].hugging) {
 			data->characters[i].since_hugging = 0;
+		} else {
+			data->characters[i].since_hugging += 3;
+		}
+
+		if (data->characters[i].to_talk) {
+			data->characters[i].to_talk--;
+			if (data->characters[i].to_talk == 0) {
+				data->characters[i].talking = 60 * 3;
+			}
 		}
 
 		double talkativeness = HappyMod(data->characters[i].talkativeness, data->characters[i].talkativeness_change, data->characters[i].happiness);
@@ -110,10 +167,15 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data) {
 
 		double happiness = 0;
 		if (talkativeness >= 0.5) {
-			happiness -= data->characters[i].since_being_talked_to * talkativeness / 60.0 / 100.0;
+			happiness -= data->characters[i].since_being_talked_to * talkativeness / 60.0 / 500.0;
+			happiness += data->characters[i].talks * talkativeness / 60.0 / 600.0;
+			if (data->characters[i].to_talk == 0) {
+				data->characters[i].to_talk = (rand() / (double)RAND_MAX) * 60 * 6 + 30;
+			}
 		}
 		if (talkativeness < 0.5) {
-			happiness += data->characters[i].since_being_talked_to * (1 - talkativeness) / 60.0 / 100.0;
+			happiness -= data->characters[i].talks * (1 - talkativeness) / 60.0 / 200.0;
+			happiness += data->characters[i].since_being_talked_to * (1 - talkativeness) / 60.0 / 500.0;
 		}
 
 		if (huginness >= 0.5) {
@@ -123,19 +185,25 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data) {
 			}
 		}
 		if (huginness < 0.5) {
-			happiness += data->characters[i].since_hugging * (1 - huginness) / 60.0 / 100.0;
+			happiness += data->characters[i].since_hugging * (1 - huginness) * 1.5 / 60.0 / 100.0;
 		}
 
-		if (sensitiveness >= 0.5) {
-			happiness -= data->characters[i].hugging * sensitiveness / 60.0 / 200.0;
-		}
-		if (sensitiveness < 0.5) {
-			happiness += data->characters[i].hugging * (1 - sensitiveness) / 60.0 / 200.0;
+		if (data->characters[i].player) {
+			if (sensitiveness >= 0.5) {
+				happiness -= data->characters[i].player->avg * sensitiveness / 60.0 / 500.0;
+			}
+			if (sensitiveness < 0.5) {
+				happiness += (1 / data->characters[i].player->avg) * 20 * (1 - sensitiveness) / 60.0 / 400.0;
+			}
 		}
 
-		happiness -= boringness * (data->characters[i].since_hugging + data->characters[i].since_being_talked_to) / 60.0 / 300.0;
+		happiness -= boringness * fmin(data->characters[i].since_hugging, data->characters[i].since_being_talked_to) * 3 / 60.0 / 300.0;
 
-		data->characters[i].happiness += happiness * data->characters[i].modificator;
+		if (happiness < 0) {
+			happiness *= 0.75;
+		}
+
+		data->characters[i].happiness += (happiness * 0.015) * data->characters[i].modificator;
 
 		if (data->characters[i].happiness > 1) {
 			data->characters[i].happiness = 1;
@@ -149,7 +217,7 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 	// Called as soon as possible, but no sooner than next Gamestate_Logic call.
 	// Draw everything to the screen here.
 
-	ALLEGRO_TRANSFORM orig_transform = *al_get_current_transform();
+	//ALLEGRO_TRANSFORM orig_transform = *al_get_current_transform();
 
 	for (int i = data->num_players - 1; i >= 0; i--) {
 		al_set_target_bitmap(data->players[i].screen);
@@ -171,7 +239,7 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 		//		al_compose_transform(&t, &orig_transform);
 		al_use_transform(&t);
 
-		al_draw_bitmap(data->players[i].hugee->bitmap, 0, 0, 0);
+		al_draw_tinted_bitmap(data->players[i].hugee->bitmap, data->players[i].hugee->talking ? al_map_rgb(255, 0, 0) : al_map_rgb(255, 255, 255), 0, 0, 0);
 		al_identity_transform(&t);
 		al_use_transform(&t);
 
@@ -183,12 +251,31 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 		al_translate_transform(&t, data->players[i].x, 600); //data->players[i].y);
 		//		al_compose_transform(&t, &orig_transform);
 		al_use_transform(&t);
-		al_draw_tinted_bitmap(data->players[i].character->bitmap, data->players[i].color, 0, 0, ALLEGRO_FLIP_HORIZONTAL);
+		al_draw_tinted_bitmap(data->players[i].character->bitmap, data->players[i].talking ? al_map_rgb(255, 0, 0) : data->players[i].color, 0, 0, ALLEGRO_FLIP_HORIZONTAL);
 		//al_draw_filled_rectangle(0, 0, 25, 25, data->players[i].color);
 
 		al_identity_transform(&t);
 		al_use_transform(&t);
+
+		al_draw_filled_rectangle(9, 9, 311, 111, al_map_rgb(0, 0, 0));
+		al_draw_filled_rectangle(10, 10, 10 + 300 * data->players[i].hugee->talkativeness, 30, al_map_rgb(255, 0, 0));
+		al_draw_filled_rectangle(10, 30, 10 + 300 * data->players[i].hugee->huginness, 50, al_map_rgb(0, 255, 0));
+		al_draw_filled_rectangle(10, 50, 10 + 300 * data->players[i].hugee->sensitiveness, 70, al_map_rgb(0, 0, 255));
+		al_draw_filled_rectangle(10, 70, 10 + 300 * data->players[i].hugee->boringness, 90, al_map_rgb(255, 0, 255));
+		al_draw_filled_rectangle(10, 90, 10 + 300 * ((data->players[i].hugee->happiness / 2.0) + 0.5), 110, al_map_rgb(0, 255, 255));
+
+		double tt = HappyMod(data->players[i].hugee->talkativeness, data->players[i].hugee->talkativeness_change, data->characters[i].happiness);
+		double h = HappyMod(data->players[i].hugee->huginness, data->players[i].hugee->huginness_change, data->characters[i].happiness);
+		double s = HappyMod(data->players[i].hugee->sensitiveness, data->players[i].hugee->sensitiveness_change, data->characters[i].happiness);
+		double b = HappyMod(data->players[i].hugee->boringness, data->players[i].hugee->boringness_change, data->characters[i].happiness);
+		al_draw_filled_rectangle(10, 10, 10 + 300 * tt, 30, al_map_rgba(128, 128, 128, 128));
+		al_draw_filled_rectangle(10, 30, 10 + 300 * h, 50, al_map_rgba(128, 128, 128, 128));
+		al_draw_filled_rectangle(10, 50, 10 + 300 * s, 70, al_map_rgba(128, 128, 128, 128));
+		al_draw_filled_rectangle(10, 70, 10 + 300 * b, 90, al_map_rgba(128, 128, 128, 128));
+		//al_draw_filled_rectangle(10, 90, 10 + 300 * ((data->players[i].hugee->happiness / 2.0) + 0.5), 110, al_map_rgba(0, 128, 128, 128));
+
 		al_draw_bitmap(data->tree, 0, 0, 0);
+		al_draw_bitmap(data->ramka, 0, 0, 0);
 	}
 
 	al_set_target_backbuffer(game->display);
@@ -262,6 +349,7 @@ void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, 
 				data->players[i].y += d->y * data->players[i].sensitivity * 0.25;
 				data->players[i].right = d->x > 0;
 				data->players[i].motion = 10;
+				data->players[i].sumtemp += data->players[i].x;
 				break;
 			}
 		}
@@ -269,9 +357,11 @@ void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, 
 	if (ev->type == MOT_EVENT_BUTTON_PRESS) {
 		PrintConsole(game, "press button %d on id %d", ev->user.data2, ev->user.data1);
 		bool found = false;
+		int foundid = -1;
 		for (int i = 0; i < data->num_players; i++) {
 			if (data->players[i].active && data->players[i].mouse_id == ev->user.data1) {
 				found = true;
+				foundid = i;
 				break;
 			}
 		}
@@ -306,9 +396,14 @@ void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, 
 			}
 
 			data->characters[j].hugee = true;
+			data->characters[j].player = &data->players[data->num_players];
 			data->players[data->num_players].hugee = &data->characters[j];
 
 			data->num_players++;
+		}
+		if (found) {
+			PrintConsole(game, "found %d", foundid);
+			data->players[foundid].talking = 60 * 3;
 		}
 	}
 	if (ev->type == MOT_EVENT_BUTTON_RELEASE) {
@@ -329,6 +424,7 @@ void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {
 	data->test = al_load_bitmap(GetDataFilePath(game, "zabka.png"));
 	data->bg = al_load_bitmap(GetDataFilePath(game, "tlo.png"));
 	data->tree = al_load_bitmap(GetDataFilePath(game, "drzewo.png"));
+	data->ramka = al_load_bitmap(GetDataFilePath(game, "ramka.png"));
 
 	data->characters[0].bitmap = al_load_bitmap(GetDataFilePath(game, "octopus.png"));
 	data->characters[1].bitmap = al_load_bitmap(GetDataFilePath(game, "zabka.png"));
@@ -367,6 +463,19 @@ void Gamestate_Start(struct Game* game, struct GamestateResources* data) {
 	data->x3 = data->x1;
 	data->y3 = data->y1;
 */
+	for (int j = 0; j < 5; j++) {
+		data->characters[j].talkativeness = rand() / (double)RAND_MAX;
+		data->characters[j].huginness = rand() / (double)RAND_MAX;
+		data->characters[j].sensitiveness = rand() / (double)RAND_MAX;
+		data->characters[j].boringness = rand() / (double)RAND_MAX;
+		data->characters[j].talkativeness_change = (rand() / (double)RAND_MAX * 2 - 1) * 0.05;
+		data->characters[j].huginness_change = (rand() / (double)RAND_MAX * 2 - 1) * 0.05;
+		data->characters[j].sensitiveness_change = (rand() / (double)RAND_MAX * 2 - 1) * 0.05;
+		data->characters[j].boringness_change = (rand() / (double)RAND_MAX * 2 - 1) * 0.05;
+		data->characters[j].happiness = 0;
+		data->characters[j].modificator = 1;
+	}
+
 	data->num_players = 0;
 }
 
