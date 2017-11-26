@@ -25,7 +25,7 @@
 struct Player;
 
 struct WoolenCharacter {
-	ALLEGRO_BITMAP* bitmap;
+	ALLEGRO_BITMAP *bitmap, *bitmaphug;
 	double talkativeness; // 0 1
 	double talkativeness_change; // -1 1
 	double huginness; // 0 1
@@ -62,6 +62,8 @@ struct Player {
 	int motion;
 	bool right;
 	double position;
+
+	ALLEGRO_BITMAP* screen;
 
 	struct WoolenCharacter *character, *hugee;
 };
@@ -143,34 +145,78 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data) {
 		}
 	}
 }
-
 void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 	// Called as soon as possible, but no sooner than next Gamestate_Logic call.
 	// Draw everything to the screen here.
 
-	al_draw_bitmap(data->bg, 0, 0, 0);
-
 	ALLEGRO_TRANSFORM orig_transform = *al_get_current_transform();
-	for (int i = 0; i < data->num_players; i++) {
+
+	for (int i = data->num_players - 1; i >= 0; i--) {
+		al_set_target_bitmap(data->players[i].screen);
+		al_clear_to_color(al_map_rgb(0, 0, 0));
+
 		ALLEGRO_TRANSFORM t;
 		al_identity_transform(&t);
-		al_translate_transform(&t, -240 / 2, -255 / 2 - 60);
-		if (data->players[i].motion) {
-			al_rotate_transform(&t, sin(floor(data->players[i].x / 100)) * ALLEGRO_PI / 20.0);
-		}
-		al_translate_transform(&t, 240 / 2, 255 / 2 - 60);
-		al_translate_transform(&t, data->players[i].x, 800); //data->players[i].y);
-		al_compose_transform(&t, &orig_transform);
 		al_use_transform(&t);
-		al_draw_tinted_bitmap(data->test, data->players[i].color, 0, 0, data->players[i].right ? ALLEGRO_FLIP_HORIZONTAL : 0);
+
+		al_draw_bitmap(data->bg, 0, 0, 0);
+
+		al_identity_transform(&t);
+		al_translate_transform(&t, -al_get_bitmap_width(data->players[i].hugee->bitmap) / 2, -al_get_bitmap_height(data->players[i].hugee->bitmap) * 0.75);
+		/*		if (data->players[i].motion) {
+			al_rotate_transform(&t, sin(floor(600 / 100)) * ALLEGRO_PI / 20.0);
+		} */
+		al_translate_transform(&t, al_get_bitmap_width(data->players[i].hugee->bitmap) / 2, al_get_bitmap_height(data->players[i].hugee->bitmap) * 0.75);
+		al_translate_transform(&t, 1400, 600); //data->players[i].y);
+		//		al_compose_transform(&t, &orig_transform);
+		al_use_transform(&t);
+
+		al_draw_bitmap(data->players[i].hugee->bitmap, 0, 0, 0);
+		al_identity_transform(&t);
+		al_use_transform(&t);
+
+		al_translate_transform(&t, -al_get_bitmap_width(data->players[i].character->bitmap) / 2, -al_get_bitmap_height(data->players[i].character->bitmap) * 0.75);
+		if (data->players[i].motion) {
+			al_rotate_transform(&t, sin(floor(data->players[i].x / 50)) * ALLEGRO_PI / 20.0);
+		}
+		al_translate_transform(&t, al_get_bitmap_width(data->players[i].character->bitmap) / 2, al_get_bitmap_height(data->players[i].character->bitmap) * 0.75);
+		al_translate_transform(&t, data->players[i].x, 600); //data->players[i].y);
+		//		al_compose_transform(&t, &orig_transform);
+		al_use_transform(&t);
+		al_draw_tinted_bitmap(data->players[i].character->bitmap, data->players[i].color, 0, 0, ALLEGRO_FLIP_HORIZONTAL);
 		//al_draw_filled_rectangle(0, 0, 25, 25, data->players[i].color);
-		al_use_transform(&orig_transform);
+
+		al_identity_transform(&t);
+		al_use_transform(&t);
+		al_draw_bitmap(data->tree, 0, 0, 0);
 	}
+
+	al_set_target_backbuffer(game->display);
+	if (data->num_players == 0) {
+		al_draw_bitmap(data->bg, 0, 0, 0);
+		al_draw_bitmap(data->tree, 0, 0, 0);
+	}
+	if (data->num_players == 1) {
+		al_draw_bitmap(data->players[0].screen, 0, 0, 0);
+	}
+	if (data->num_players == 2) {
+		al_draw_scaled_bitmap(data->players[0].screen, 0, 0, 1920, 1080, 0, 1080 / 4, 1920 / 2, 1080 / 2, 0);
+		al_draw_scaled_bitmap(data->players[1].screen, 0, 0, 1920, 1080, 1920 / 2, 1080 / 4, 1920 / 2, 1080 / 2, 0);
+	}
+	if (data->num_players > 2) {
+		al_draw_scaled_bitmap(data->players[0].screen, 0, 0, 1920, 1080, 0, 0, 1920 / 2, 1080 / 2, 0);
+		al_draw_scaled_bitmap(data->players[1].screen, 0, 0, 1920, 1080, 1920 / 2, 0, 1920 / 2, 1080 / 2, 0);
+		if (data->num_players == 4) {
+			al_draw_scaled_bitmap(data->players[2].screen, 0, 0, 1920, 1080, 0, 1080 / 2, 1920 / 2, 1080 / 2, 0);
+			al_draw_scaled_bitmap(data->players[3].screen, 0, 0, 1920, 1080, 1920 / 2, 1080 / 2, 1920 / 2, 1080 / 2, 0);
+		} else {
+			al_draw_scaled_bitmap(data->players[2].screen, 0, 0, 1920, 1080, 1920 / 4, 1080 / 2, 1920 / 2, 1080 / 2, 0);
+		}
+	}
+	//	al_use_transform(&orig_transform);
 	/*	al_draw_filled_rectangle(data->x1, data->y1, data->x1 + 10, data->y1 + 10, al_map_rgb(255, 0, 0));
 	al_draw_filled_rectangle(data->x2, data->y2, data->x2 + 10, data->y2 + 10, al_map_rgb(0, 255, 0));
 	al_draw_filled_rectangle(data->x3, data->y3, data->x3 + 10, data->y3 + 10, al_map_rgb(0, 0, 255));*/
-
-	al_draw_bitmap(data->tree, 0, 0, 0);
 }
 
 void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, ALLEGRO_EVENT* ev) {
@@ -215,7 +261,7 @@ void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, 
 				data->players[i].x += d->x * data->players[i].sensitivity * 0.25;
 				data->players[i].y += d->y * data->players[i].sensitivity * 0.25;
 				data->players[i].right = d->x > 0;
-				data->players[i].motion = 5;
+				data->players[i].motion = 10;
 				break;
 			}
 		}
@@ -235,7 +281,7 @@ void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, 
 			data->players[data->num_players].y = 1080 / 2;
 			data->players[data->num_players].mouse_id = ev->user.data1;
 			data->players[data->num_players].sensitivity = 1.f;
-			data->players[data->num_players].color = al_map_rgb_f(rand() / (double)RAND_MAX, rand() / (double)RAND_MAX, rand() / (double)RAND_MAX);
+			data->players[data->num_players].color = al_map_rgb(255, 255, 255); //al_map_rgb_f(rand() / (double)RAND_MAX, rand() / (double)RAND_MAX, rand() / (double)RAND_MAX);
 
 			int j = 0;
 			while (rand() % 20 || data->characters[j].used) {
@@ -248,6 +294,20 @@ void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, 
 			data->characters[j].player = &data->players[data->num_players];
 			data->characters[j].used = true;
 			PrintConsole(game, "PLAYER %d got CHARACTER %d", data->num_players, j);
+
+			j = 0;
+			if (data->num_players == j) j++;
+			while (rand() % 20 || data->characters[j].hugee) {
+				j++;
+				if (data->num_players == j) j++;
+				if (j >= 5) {
+					j -= 5;
+				}
+			}
+
+			data->characters[j].hugee = true;
+			data->players[data->num_players].hugee = &data->characters[j];
+
 			data->num_players++;
 		}
 	}
@@ -269,6 +329,23 @@ void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {
 	data->test = al_load_bitmap(GetDataFilePath(game, "zabka.png"));
 	data->bg = al_load_bitmap(GetDataFilePath(game, "tlo.png"));
 	data->tree = al_load_bitmap(GetDataFilePath(game, "drzewo.png"));
+
+	data->characters[0].bitmap = al_load_bitmap(GetDataFilePath(game, "octopus.png"));
+	data->characters[1].bitmap = al_load_bitmap(GetDataFilePath(game, "zabka.png"));
+	data->characters[2].bitmap = al_load_bitmap(GetDataFilePath(game, "octopus.png"));
+	data->characters[3].bitmap = al_load_bitmap(GetDataFilePath(game, "zabka.png"));
+	data->characters[4].bitmap = al_load_bitmap(GetDataFilePath(game, "octopus.png"));
+
+	data->characters[0].bitmaphug = al_load_bitmap(GetDataFilePath(game, "octopus2.png"));
+	data->characters[1].bitmaphug = al_load_bitmap(GetDataFilePath(game, "zabka.png"));
+	data->characters[2].bitmaphug = al_load_bitmap(GetDataFilePath(game, "octopus2.png"));
+	data->characters[3].bitmaphug = al_load_bitmap(GetDataFilePath(game, "zabka.png"));
+	data->characters[4].bitmaphug = al_load_bitmap(GetDataFilePath(game, "octopus2.png"));
+
+	data->players[0].screen = al_create_bitmap(1920, 1080);
+	data->players[1].screen = al_create_bitmap(1920, 1080);
+	data->players[2].screen = al_create_bitmap(1920, 1080);
+	data->players[3].screen = al_create_bitmap(1920, 1080);
 
 	progress(game); // report that we progressed with the loading, so the engine can move a progress bar
 	return data;
