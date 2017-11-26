@@ -280,8 +280,8 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data) {
 				}
 			} else {
 				data->players[i].hugee->talks--;
-				if (data->players[i].hugee->talks < -10) {
-					data->players[i].hugee->talks = -10;
+				if (data->players[i].hugee->talks < 0) {
+					data->players[i].hugee->talks = 0;
 				}
 				data->players[i].hugee->since_being_talked_to += 3;
 				if (data->players[i].hugee->since_hugging) {
@@ -319,8 +319,8 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data) {
 
 			double happiness = 0;
 			if (talkativeness >= 0.5) {
-				happiness -= data->characters[i].since_being_talked_to * talkativeness / 60.0 / 500.0;
-				happiness += data->characters[i].talks * talkativeness / 60.0 / 600.0;
+				happiness -= data->characters[i].since_being_talked_to * talkativeness / 60.0 / 50.0;
+				happiness += data->characters[i].talks * talkativeness / 60.0 / 400.0;
 				if (data->characters[i].to_talk == 0) {
 					data->characters[i].to_talk = (rand() / (double)RAND_MAX) * 60 * 6 + 30;
 				}
@@ -345,14 +345,14 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data) {
 
 			if (data->characters[i].player) {
 				if (sensitiveness >= 0.5) {
-					happiness -= data->characters[i].player->avg * sensitiveness / 60.0 / 500.0;
+					happiness -= data->characters[i].player->avg * sensitiveness / 60.0 / 5000.0;
 				}
 				if (sensitiveness < 0.5) {
-					//				happiness += (1 / data->characters[i].player->avg ? data->characters[i].player->avg : 1) * 20 * (1 - sensitiveness) / 60.0 / 400.0;
+					happiness += (1 / data->characters[i].player->avg ? data->characters[i].player->avg : 1) * 20 * (1 - sensitiveness) / 60.0 / 5000.0;
 				}
 			}
 
-			happiness -= boringness * pow(data->characters[i].boredom_time, 1.5) * 20 / 60.0 / 150000.0;
+			happiness -= boringness * pow(data->characters[i].boredom_time, 1.25) * 20 / 60.0 / 400000.0;
 
 			if (happiness < 0) {
 				//				happiness *= 0.75;
@@ -591,7 +591,7 @@ void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, 
 				data->players[i].y += d->y * data->players[i].sensitivity * 0.25;
 				data->players[i].right = d->x > 0;
 				data->players[i].motion = 10;
-				data->players[i].sumtemp += data->players[i].x;
+				data->players[i].sumtemp += fabs(data->players[i].x) / 100.0;
 
 				if (data->players[i].x < 300 + data->players[i].character->offsettulu) {
 					data->players[i].x = 300 + data->players[i].character->offsettulu;
