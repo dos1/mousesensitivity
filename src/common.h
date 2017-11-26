@@ -18,9 +18,27 @@
 #define LIBSUPERDERPY_DATA_TYPE struct CommonResources
 #include <libsuperderpy.h>
 
+#include <X11/Xlib.h>
+#include <X11/extensions/XInput.h>
+#include <X11/extensions/XInput2.h>
+
 struct CommonResources {
 	// Fill in with common data accessible from all gamestates.
-	bool unused;
+	Display* display;
+	int xi_opcode;
+
+	// 13, 16, 17
+};
+
+typedef enum {
+	MOT_EVENT_BUTTON_PRESS = 512,
+	MOT_EVENT_BUTTON_RELEASE,
+	MOT_EVENT_MOUSE_MOVE
+} MOT_EVENT_TYPE;
+
+struct MoTMouseMoveEventData {
+	double x;
+	double y;
 };
 
 struct CommonResources* CreateGameData(struct Game* game);
