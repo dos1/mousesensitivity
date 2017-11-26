@@ -22,7 +22,7 @@
 #include "../common.h"
 #include <libsuperderpy.h>
 
-#define NEXT_GAMESTATE "miku"
+#define NEXT_GAMESTATE "empty"
 #define SKIP_GAMESTATE NEXT_GAMESTATE
 
 struct GamestateResources {
@@ -35,7 +35,7 @@ int Gamestate_ProgressCount = 1;
 
 void Gamestate_Logic(struct Game* game, struct GamestateResources* data) {
 	data->counter++;
-	if (data->counter > 60 * 5.2) {
+	if (data->counter > 60 * 3) {
 		SwitchCurrentGamestate(game, NEXT_GAMESTATE);
 	}
 }
@@ -43,10 +43,6 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data) {
 void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 	al_clear_to_color(al_map_rgb(255, 255, 255));
 	al_draw_scaled_bitmap(data->bmp, 0, 0, al_get_bitmap_width(data->bmp), al_get_bitmap_height(data->bmp), 0, 0, game->viewport.width, game->viewport.height, 0);
-
-	if (data->counter < 320) {
-		al_draw_filled_rectangle(0, 0, game->viewport.width, game->viewport.height, al_map_rgba_f(1 - data->counter / 280.0, 1 - data->counter / 280.0, 1 - data->counter / 280.0, 1 - data->counter / 280.0));
-	}
 }
 
 void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, ALLEGRO_EVENT* ev) {
@@ -57,26 +53,19 @@ void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, 
 
 void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {
 	struct GamestateResources* data = malloc(sizeof(struct GamestateResources));
-	data->bmp = al_load_bitmap(GetDataFilePath(game, "holypangolin.png"));
+	data->bmp = al_load_bitmap(GetDataFilePath(game, "miku.png"));
 	progress(game); // report that we progressed with the loading, so the engine can draw a progress bar
-
-	data->monkeys = al_load_audio_stream(GetDataFilePath(game, "holypangolin.flac"), 4, 1024);
-	al_set_audio_stream_playing(data->monkeys, false);
-	al_attach_audio_stream_to_mixer(data->monkeys, game->audio.fx);
-	al_set_audio_stream_gain(data->monkeys, 0.75);
 
 	return data;
 }
 
 void Gamestate_Unload(struct Game* game, struct GamestateResources* data) {
 	al_destroy_bitmap(data->bmp);
-	al_destroy_audio_stream(data->monkeys);
 	free(data);
 }
 
 void Gamestate_Start(struct Game* game, struct GamestateResources* data) {
 	data->counter = 0;
-	al_set_audio_stream_playing(data->monkeys, true);
 }
 
 void Gamestate_Stop(struct Game* game, struct GamestateResources* data) {}
