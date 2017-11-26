@@ -58,6 +58,8 @@ struct WoolenCharacter {
 	bool quit;
 
 	struct Player* player;
+
+	int dymek;
 };
 
 struct Player {
@@ -94,12 +96,16 @@ struct GamestateResources {
 	bool started;
 	bool finished;
 
+	bool debug;
+	bool background;
+
 	int num_players;
 
 	struct WoolenCharacter characters[5];
 
-	ALLEGRO_BITMAP *test, *bg, *tree, *ramka, *dymek, *napis, *heart, *heart2;
-	ALLEGRO_BITMAP *burza1, *burza2, *burza3, *burza4, *burza5, *burza6;
+	ALLEGRO_BITMAP *test, *bg, *tree, *ramka, *dymek, *napis, *heart, *heart2, *dymek1, *dymek2, *dymek3;
+	ALLEGRO_BITMAP* dymki[4];
+	ALLEGRO_BITMAP *burza1, *burza2, *burza3, *burza4, *burza5, *burza6, *group;
 };
 
 int HUGPOS = 1100;
@@ -114,12 +120,37 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data) {
 	// Called 60 times per second (by default). Here you should do all your game logic.
 	data->counter++;
 	bool domore = true;
+
+	double limit = 0.2 + (data->num_players * 0.1);
+	bool end = true;
+	for (int i = 0; i < 5; i++) {
+		if (data->characters[i].happiness <= limit) {
+			end = false;
+			break;
+		}
+	}
+	if (end) {
+		data->started = false;
+		data->finished = true;
+		for (int i = 0; i < 4; i++) {
+			data->players[i].active = false;
+		}
+		data->num_players = 0;
+		for (int i = 0; i < 5; i++) {
+			data->characters[i].hugee = false;
+			data->characters[i].used = false;
+		}
+	}
+
 	if (data->started) {
 		if (data->game_counter % (60 * 12) == 60 * 10) {
 			for (int i = 0; i < 5; i++) {
 				data->characters[i].position = 0;
 				data->characters[i].quit = true;
 				data->characters[i].hugging = false;
+			}
+			for (int i = 0; i < 4; i++) {
+				data->players[i].hugging = false;
 			}
 		}
 		if (data->game_counter % (60 * 12) == 0) {
@@ -167,7 +198,7 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data) {
 		}
 	}
 
-	if (!domore) return;
+	if (!domore) { return; }
 
 	if (data->started) {
 		for (int i = 0; i < data->num_players; i++) {
@@ -236,6 +267,7 @@ void Gamestate_Logic(struct Game* game, struct GamestateResources* data) {
 				data->characters[i].to_talk--;
 				if (data->characters[i].to_talk == 0) {
 					data->characters[i].talking = 60 * 2;
+					data->characters[i].dymek = rand() % 4;
 				}
 			}
 
@@ -307,13 +339,15 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 
 	for (int i = data->num_players - 1; i >= 0; i--) {
 		al_set_target_bitmap(data->players[i].screen);
-		al_clear_to_color(al_map_rgb(0, 0, 0));
+		al_clear_to_color(al_map_rgb(255, 255, 255));
 
 		ALLEGRO_TRANSFORM t;
 		al_identity_transform(&t);
 		al_use_transform(&t);
 
-		al_draw_bitmap(data->bg, 0, 0, 0);
+		if (data->background) {
+			al_draw_bitmap(data->bg, 0, 0, 0);
+		}
 
 		if (data->started) {
 			al_draw_tinted_bitmap(data->heart, al_map_rgba(222, 222, 222, 222), 1400 + data->players[i].hugee->position, 300 + sin((data->counter + i * 60) / 24.0) * 20, 0);
@@ -332,7 +366,7 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 			al_use_transform(&t);
 
 			if (data->players[i].hugee->talking) {
-				al_draw_bitmap(data->dymek, 0 + data->players[i].hugee->offsetx, -200 + data->players[i].hugee->offsety, ALLEGRO_FLIP_HORIZONTAL);
+				al_draw_bitmap(data->dymki[data->players[i].hugee->dymek], 0 + data->players[i].hugee->offsetx, -200 + data->players[i].hugee->offsety, ALLEGRO_FLIP_HORIZONTAL);
 			}
 			al_draw_tinted_bitmap(data->players[i].hugging ? data->players[i].hugee->bitmaphug : data->players[i].hugee->bitmap, al_map_rgb(255, 255, 255), data->players[i].hugee->offsetx, data->players[i].hugee->offsety + (data->players[i].hugging ? -20 : 0), 0);
 		}
@@ -348,7 +382,7 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 		//		al_compose_transform(&t, &orig_transform);
 		al_use_transform(&t);
 		if (data->players[i].talking) {
-			al_draw_bitmap(data->dymek, 320 + data->players[i].character->offsetx, -190 + data->players[i].character->offsety, 0);
+			al_draw_bitmap(data->dymki[data->players[i].character->dymek], 320 + data->players[i].character->offsetx, -190 + data->players[i].character->offsety, 0);
 		}
 		al_draw_tinted_bitmap(data->players[i].hugging ? data->players[i].character->bitmaphug : data->players[i].character->bitmap, data->players[i].color, data->players[i].character->offsetx, data->players[i].character->offsety + (data->players[i].hugging ? -20 : 0), ALLEGRO_FLIP_HORIZONTAL);
 		//al_draw_filled_rectangle(0, 0, 25, 25, data->players[i].color);
@@ -356,34 +390,49 @@ void Gamestate_Draw(struct Game* game, struct GamestateResources* data) {
 		al_identity_transform(&t);
 		al_use_transform(&t);
 
-		al_draw_filled_rectangle(9, 9, 311, 111, al_map_rgb(0, 0, 0));
-		al_draw_filled_rectangle(10, 10, 10 + 300 * data->players[i].hugee->talkativeness, 30, al_map_rgb(255, 0, 0));
-		al_draw_filled_rectangle(10, 30, 10 + 300 * data->players[i].hugee->huginness, 50, al_map_rgb(0, 255, 0));
-		al_draw_filled_rectangle(10, 50, 10 + 300 * data->players[i].hugee->sensitiveness, 70, al_map_rgb(0, 0, 255));
-		al_draw_filled_rectangle(10, 70, 10 + 300 * data->players[i].hugee->boringness, 90, al_map_rgb(255, 0, 255));
-		al_draw_filled_rectangle(10, 90, 10 + 300 * ((data->players[i].hugee->happiness / 2.0) + 0.5), 110, al_map_rgb(0, 255, 255));
+		if (data->debug) {
+			al_draw_filled_rectangle(9, 9, 311, 111, al_map_rgb(0, 0, 0));
+			al_draw_filled_rectangle(10, 10, 10 + 300 * data->players[i].hugee->talkativeness, 30, al_map_rgb(255, 0, 0));
+			al_draw_filled_rectangle(10, 30, 10 + 300 * data->players[i].hugee->huginness, 50, al_map_rgb(0, 255, 0));
+			al_draw_filled_rectangle(10, 50, 10 + 300 * data->players[i].hugee->sensitiveness, 70, al_map_rgb(0, 0, 255));
+			al_draw_filled_rectangle(10, 70, 10 + 300 * data->players[i].hugee->boringness, 90, al_map_rgb(255, 0, 255));
+			al_draw_filled_rectangle(10, 90, 10 + 300 * ((data->players[i].hugee->happiness / 2.0) + 0.5), 110, al_map_rgb(0, 255, 255));
 
-		double tt = HappyMod(data->players[i].hugee->talkativeness, data->players[i].hugee->talkativeness_change, data->characters[i].happiness);
-		double h = HappyMod(data->players[i].hugee->huginness, data->players[i].hugee->huginness_change, data->characters[i].happiness);
-		double s = HappyMod(data->players[i].hugee->sensitiveness, data->players[i].hugee->sensitiveness_change, data->characters[i].happiness);
-		double b = HappyMod(data->players[i].hugee->boringness, data->players[i].hugee->boringness_change, data->characters[i].happiness);
-		al_draw_filled_rectangle(10, 10, 10 + 300 * tt, 30, al_map_rgba(128, 128, 128, 128));
-		al_draw_filled_rectangle(10, 30, 10 + 300 * h, 50, al_map_rgba(128, 128, 128, 128));
-		al_draw_filled_rectangle(10, 50, 10 + 300 * s, 70, al_map_rgba(128, 128, 128, 128));
-		al_draw_filled_rectangle(10, 70, 10 + 300 * b, 90, al_map_rgba(128, 128, 128, 128));
-		//al_draw_filled_rectangle(10, 90, 10 + 300 * ((data->players[i].hugee->happiness / 2.0) + 0.5), 110, al_map_rgba(0, 128, 128, 128));
+			double tt = HappyMod(data->players[i].hugee->talkativeness, data->players[i].hugee->talkativeness_change, data->characters[i].happiness);
+			double h = HappyMod(data->players[i].hugee->huginness, data->players[i].hugee->huginness_change, data->characters[i].happiness);
+			double s = HappyMod(data->players[i].hugee->sensitiveness, data->players[i].hugee->sensitiveness_change, data->characters[i].happiness);
+			double b = HappyMod(data->players[i].hugee->boringness, data->players[i].hugee->boringness_change, data->characters[i].happiness);
+			al_draw_filled_rectangle(10, 10, 10 + 300 * tt, 30, al_map_rgba(128, 128, 128, 128));
+			al_draw_filled_rectangle(10, 30, 10 + 300 * h, 50, al_map_rgba(128, 128, 128, 128));
+			al_draw_filled_rectangle(10, 50, 10 + 300 * s, 70, al_map_rgba(128, 128, 128, 128));
+			al_draw_filled_rectangle(10, 70, 10 + 300 * b, 90, al_map_rgba(128, 128, 128, 128));
+			//al_draw_filled_rectangle(10, 90, 10 + 300 * ((data->players[i].hugee->happiness / 2.0) + 0.5), 110, al_map_rgba(0, 128, 128, 128));
+		}
 
-		al_draw_bitmap(data->tree, 0, 0, 0);
+		if (data->background) {
+			al_draw_bitmap(data->tree, 0, 0, 0);
+		}
 		al_draw_bitmap(data->ramka, 0, 0, 0);
 	}
 
 	al_set_target_backbuffer(game->display);
+	al_clear_to_color(al_map_rgb(0, 0, 0));
 	if (data->num_players == 0) {
-		al_draw_bitmap(data->bg, 0, 0, 0);
+		if (data->background) {
+			al_draw_bitmap(data->bg, 0, 0, 0);
+		}
 		double s = sin(data->counter / 25.0) * 0.1 + 0.9;
-		al_draw_tinted_bitmap(data->napis, al_map_rgba_f(s, s, s, s), 0, s * 40, 0);
-		al_draw_bitmap(data->tree, 0, 0, 0);
+		if (!data->finished) {
+			al_draw_tinted_bitmap(data->napis, al_map_rgba_f(s, s, s, s), 0, s * 40, 0);
+		}
+		if (data->background) {
+			al_draw_bitmap(data->tree, 0, 0, 0);
+		}
 		al_draw_bitmap(data->ramka, 0, 0, 0);
+
+		if (data->finished) {
+			al_draw_bitmap(data->group, 0, 0, 0);
+		}
 	}
 	if (data->num_players == 1) {
 		al_draw_bitmap(data->players[0].screen, 0, 0, 0);
@@ -418,7 +467,15 @@ void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, 
 
 	double sensitivity = 0.1;
 	if ((ev->type == ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_1)) {
-		data->started = true;
+		if (!data->started) {
+			data->started = true;
+			data->characters[0].position = 6 * 120;
+			data->characters[1].position = 7 * 120;
+			data->characters[2].position = 8 * 120;
+			data->characters[3].position = 9 * 120;
+			data->characters[4].position = 10 * 120;
+			data->game_counter = 0;
+		}
 	}
 	if ((ev->type == ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_2)) {
 		data->players[0].sensitivity -= sensitivity;
@@ -443,6 +500,25 @@ void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, 
 	}
 	if ((ev->type == ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_9)) {
 		data->players[3].sensitivity += sensitivity;
+	}
+	if ((ev->type == ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_D)) {
+		data->debug = !data->debug;
+	}
+	if ((ev->type == ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_B)) {
+		data->background = !data->background;
+	}
+
+	if ((ev->type == ALLEGRO_EVENT_KEY_DOWN) && (ev->keyboard.keycode == ALLEGRO_KEY_W)) {
+		data->started = false;
+		data->finished = true;
+		for (int i = 0; i < 4; i++) {
+			data->players[i].active = false;
+		}
+		data->num_players = 0;
+		for (int i = 0; i < 5; i++) {
+			data->characters[i].hugee = false;
+			data->characters[i].used = false;
+		}
 	}
 
 	if (ev->type == MOT_EVENT_MOUSE_MOVE) {
@@ -517,9 +593,11 @@ void Gamestate_ProcessEvent(struct Game* game, struct GamestateResources* data, 
 			data->num_players++;
 		}
 		if (found) {
+			if (!data->started) { return; }
 			PrintConsole(game, "found %d", foundid);
 			if (data->players[foundid].talking == 0) {
 				data->players[foundid].talking = 60 * 2;
+				data->players[foundid].character->dymek = rand() % 4;
 			}
 		}
 	}
@@ -542,7 +620,10 @@ void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {
 	data->bg = al_load_bitmap(GetDataFilePath(game, "tlo.png"));
 	data->tree = al_load_bitmap(GetDataFilePath(game, "drzewo.png"));
 	data->ramka = al_load_bitmap(GetDataFilePath(game, "ramka.png"));
-	data->dymek = al_load_bitmap(GetDataFilePath(game, "dymek4.png"));
+	data->dymki[0] = al_load_bitmap(GetDataFilePath(game, "dymek4.png"));
+	data->dymki[1] = al_load_bitmap(GetDataFilePath(game, "dymek3.png"));
+	data->dymki[2] = al_load_bitmap(GetDataFilePath(game, "dymek2.png"));
+	data->dymki[3] = al_load_bitmap(GetDataFilePath(game, "dymek1.png"));
 	data->napis = al_load_bitmap(GetDataFilePath(game, "napis.png"));
 	data->heart = al_load_bitmap(GetDataFilePath(game, "serce_puste.png"));
 	data->heart2 = al_load_bitmap(GetDataFilePath(game, "serce_pelne.png"));
@@ -553,6 +634,7 @@ void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {
 	data->burza4 = al_load_bitmap(GetDataFilePath(game, "burza4.png"));
 	data->burza5 = al_load_bitmap(GetDataFilePath(game, "burza5.png"));
 	data->burza6 = al_load_bitmap(GetDataFilePath(game, "burza6.png"));
+	data->group = al_load_bitmap(GetDataFilePath(game, "grouphug1.png"));
 
 	data->characters[0].bitmap = al_load_bitmap(GetDataFilePath(game, "octopus.png"));
 	data->characters[1].bitmap = al_load_bitmap(GetDataFilePath(game, "kret2a.png"));
@@ -576,12 +658,6 @@ void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {
 	data->characters[3].offsety = 48;
 	data->characters[4].offsetx = 164;
 	data->characters[4].offsety = 23;
-
-	data->characters[0].position = 6 * 220;
-	data->characters[1].position = 6 * 220;
-	data->characters[2].position = 6 * 220;
-	data->characters[3].position = 6 * 220;
-	data->characters[4].position = 6 * 220;
 
 	data->characters[0].entrance = true;
 	data->characters[1].entrance = true;
@@ -634,6 +710,9 @@ void Gamestate_Start(struct Game* game, struct GamestateResources* data) {
 	}
 
 	data->num_players = 0;
+
+	data->debug = false;
+	data->background = true;
 }
 
 void Gamestate_Stop(struct Game* game, struct GamestateResources* data) {
