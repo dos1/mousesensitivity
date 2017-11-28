@@ -760,6 +760,7 @@ void* Gamestate_Load(struct Game* game, void (*progress)(struct Game*)) {
 
 	data->music = al_load_audio_stream(GetDataFilePath(game, "music.flac"), 4, 1024);
 	al_set_audio_stream_playing(data->music, false);
+	al_set_audio_stream_playmode(data->music, ALLEGRO_PLAYMODE_LOOP);
 	//al_set_audio_stream_gain(data->music, 1.5);
 	al_attach_audio_stream_to_mixer(data->music, game->audio.music);
 
